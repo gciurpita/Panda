@@ -176,10 +176,37 @@ brakeReset ()
 };
 
 // -------------------------------------
+void  brakeLnCapacity ()
+{
+    brkLnVol   = (0.1 + cars) * carLen * BrkLnArea / SqFt;
+    brkRsvrVol = cars * BrkRsvrVol;
+    brkTotVol  = brkLnVol + brkRsvrVol;
+    brkFilMax  = brkTotVol * BrkLnPsiMax / AtmPsi;
+
+#if 0
+    printf ("%110s%s: ", "", __func__);
+    printf (" brkLnVol %.1f",   brkLnVol);
+    printf (" brkRsvrVol %.1f", brkRsvrVol);
+    printf (" brkTotVol %.1f",  brkTotVol);
+    printf (" brkFilMax %.1f",  brkFilMax);
+    printf ("\n");
+#endif
+}
+
+// -------------------------------------
+//  brkLnPsi  = AtmPsi * brkLnFil / brkTotVol;
+//
 void airBrkFill (
     int  psi )
 {
+    printf ("%s: %d psi\n", __func__, psi);
+
     brkLnPsi = equPsi = psi;
+
+    brakeLnCapacity ();
+    brkLnFil = brkLnPsi * brkTotVol / AtmPsi ;
+
+    airPct   = 0;
 #if 0
     brkLnFil = brkLnVol * brkLnPsi / AtmPsi;
 
@@ -210,7 +237,7 @@ brakeAir (
 {
     airPos  = _brakeUpdate (encBpos, & _encAir);
 
-    if (0 || dbg)
+    if (0 && dbg)
         printf ( " air: dTsec %4.1f, airPos %d %4s"
                  ", cars %d, lnPsi %.1f, eqPsi %.1f\n",
                 dTsec, airPos, airBrkStr [airPos], cars, brkLnPsi, equPsi);
@@ -226,7 +253,6 @@ brakeAir (
     switch (airPos)  {
     case BRK_A_REL:
      // brkFlRat   = rateRel / 60;
-        brkLnPsi_0 = brkLnPsi;
         if (equPsi < BrkLnPsiMax)
             equPsi    += 2 * dTsec;                     // increase rsvr
 
@@ -242,7 +268,6 @@ brakeAir (
      ///brkLnPsi_0 = brkLnPsi;
     /// equPsi     = brkLnPsi;
     ///
-        brkLnPsi_0 = brkLnPsi;
         if (equPsi < BrkLnPsiMax)
             equPsi    += 2 * dTsec;                     // increase rsvr
 
@@ -279,16 +304,15 @@ brakeAir (
     }
 
     // -----------------------------------------------
-    // update brake line and reservoir fill
-    brkLnVol   = (0.1 + cars) * carLen * BrkLnArea / SqFt;
-    brkRsvrVol = cars * BrkRsvrVol;
-    brkTotVol  = brkLnVol + brkRsvrVol;
+    // update brake line and reservoir capacity based on # cars
+    brakeLnCapacity ();
 
-    brkFilMax  = brkTotVol * BrkLnPsiMax / AtmPsi;
+    if (dbg)
+        printf ("%110s%s: fil %.2f, rat %.2f",
+                            "", __func__, brkLnFil, brkFlRat);
 
     // update brake line and reservoir fill
     if (0 > brkFlRat && equPsi < brkLnPsi)  {       // dropping
-        printf ("... %s: droping, %.2f %.2f\n", __func__, brkFlRat, brkLnPsi_0);
         brkLnFil  = brkLnVol * brkLnPsi / AtmPsi;
         brkLnFil += brkFlRat * dTsec;               // filRate negative
 
@@ -298,7 +322,6 @@ brakeAir (
     }
     // need to fill air in both line and reservoir
     else if (0 < brkFlRat && brkLnPsi < BrkLnPsiMax)  {   // filling
-        printf ("... %s: filling, %.2f %.2f\n", __func__, brkFlRat, brkLnPsi_0);
         brkLnFil   = brkTotVol * brkLnPsi / AtmPsi;
         brkLnFil  += brkFlRat * dTsec;
 
@@ -307,6 +330,7 @@ brakeAir (
         brkLnPsi  = AtmPsi * brkLnFil / brkTotVol;
     }
 
+    // -----------------------------------------------
     // update brake line pressure
     if (0 == brkLnVol)
         brkLnPsi  = 0;
@@ -318,18 +342,21 @@ brakeAir (
     if (BrkLnPsiMax < brkLnPsi)
         brkLnPsi = BrkLnPsiMax;
 
+    // capture peak
+    if (brkLnPsiLst <= brkLnPsi)
+        brkLnPsi_0 = brkLnPsi;
+
+    // -----------------------------------------------
     // update braking %
     dBrkLnPsi = brkLnPsi_0 - brkLnPsi;
     if (BRK_A_HOLD != airPos)
         dBrkLnPsiInd = dBrkLnPsi;
 
     if (0 < dBrkLnPsi)  {
-        printf ("... %s: brake apply\n", __func__);
-        airPct = (int) (100 * dBrkLnPsi / BrkCylMax);
+        airPct = (100. * dBrkLnPsi / BrkCylMax);
         airPct = 100 < airPct ? 100 : airPct;
     }
     else if (brkLnPsi > brkLnPsiLst)  {
-        printf ("... %s: brake restore\n", __func__);
         airPct -= 100. / (7 * cars);   // brake air propogation
         if (0 > airPct)
             airPct = 0;
@@ -340,8 +367,10 @@ brakeAir (
         printf (", lnFil %.1f",  brkLnFil);
         printf (", lnPsi %4.1f", brkLnPsi);
         printf (", airPct %4.1f", airPct);
-        printf ("\n");
     }
+
+    if (dbg)
+        printf ("\n");
 
     return NBR * airPct;
 }
