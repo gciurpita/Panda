@@ -56,7 +56,7 @@ double  indK;
 
 double  timeMsec    = 0;
 
-bool    dbg         = false;
+bool    dbg         =  false;
 
 // ---------------------------------------------------------
 // air model dependent
@@ -201,7 +201,7 @@ void airBrkFill (
 {
     printf ("%s: %d psi\n", __func__, psi);
 
-    brkLnPsi = equPsi = psi;
+    brkLnPsi = brkLnPsi_0 =  equPsi = psi;
 
     brakeLnCapacity ();
     brkLnFil = brkLnPsi * brkTotVol / AtmPsi ;
@@ -263,6 +263,7 @@ brakeAir (
         break;
 
     case BRK_A_RUN:
+    case BRK_A_HOLD:        // hold independent, release train brakes
      // brkFlRat   = rateRel / 60;
     /// brkFlRat   = (BrkLnPsiMax - brkLnPsi) / 60;     // less pressure
      ///brkLnPsi_0 = brkLnPsi;
@@ -271,14 +272,15 @@ brakeAir (
         if (equPsi < BrkLnPsiMax)
             equPsi    += 2 * dTsec;                     // increase rsvr
 
+        // fall thru
+
+    case BRK_A_LAP:
         if (equPsi < brkLnPsi)
             brkFlRat   = -(brkLnPsi/6) / 60;            // cont. to decrease
         else if (equPsi > brkLnPsi)
             brkFlRat   = (BrkLnPsiMax - brkLnPsi) / 60; // higher pressure
         break;
 
-    case BRK_A_HOLD:        // ???
-        break;
 
     case BRK_A_SVC:
         if (equPsi > brkLnPsiMin)
@@ -298,7 +300,6 @@ brakeAir (
         equPsi    -= 50 * dTsec;
         break;
 
-    case BRK_A_LAP:
     default:
         break;
     }
@@ -343,29 +344,38 @@ brakeAir (
         brkLnPsi = BrkLnPsiMax;
 
     // capture peak
-    if (brkLnPsiLst <= brkLnPsi)
+    if (brkLnPsiLst < brkLnPsi)
         brkLnPsi_0 = brkLnPsi;
+
+    if (BRK_A_HOLD != airPos)
+        dBrkLnPsiInd = dBrkLnPsi;
 
     // -----------------------------------------------
     // update braking %
     dBrkLnPsi = brkLnPsi_0 - brkLnPsi;
-    if (BRK_A_HOLD != airPos)
-        dBrkLnPsiInd = dBrkLnPsi;
+
+    if (dbg)  {
+        printf (" lnPsiLst %.3f",  brkLnPsiLst);
+        printf (" lnPsi %.3f",     brkLnPsi);
+        printf (" lnPsi_0 %.3f",   brkLnPsi_0);
+        printf (" dBrkLnPsi %.3f", dBrkLnPsi);
+    }
 
     if (0 < dBrkLnPsi)  {
         airPct = (100. * dBrkLnPsi / BrkCylMax);
         airPct = 100 < airPct ? 100 : airPct;
     }
     else if (brkLnPsi > brkLnPsiLst)  {
+
         airPct -= 100. / (7 * cars);   // brake air propogation
         if (0 > airPct)
             airPct = 0;
     }
 
-    if (dbg)  {
+    if (0 && dbg)  {
         printf (", lnVol %.1f",  brkLnVol);
         printf (", lnFil %.1f",  brkLnFil);
-        printf (", lnPsi %4.1f", brkLnPsi);
+        printf (", lnPsi %4.3f", brkLnPsi);
         printf (", airPct %4.1f", airPct);
     }
 
