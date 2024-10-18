@@ -252,7 +252,6 @@ brakeAir (
 
     switch (airPos)  {
     case BRK_A_REL:
-     // brkFlRat   = rateRel / 60;
         if (equPsi < BrkLnPsiMax)
             equPsi    += 2 * dTsec;                     // increase rsvr
 
@@ -264,11 +263,6 @@ brakeAir (
 
     case BRK_A_RUN:
     case BRK_A_HOLD:        // hold independent, release train brakes
-     // brkFlRat   = rateRel / 60;
-    /// brkFlRat   = (BrkLnPsiMax - brkLnPsi) / 60;     // less pressure
-     ///brkLnPsi_0 = brkLnPsi;
-    /// equPsi     = brkLnPsi;
-    ///
         if (equPsi < BrkLnPsiMax)
             equPsi    += 2 * dTsec;                     // increase rsvr
 
@@ -290,12 +284,9 @@ brakeAir (
             brkFlRat   = -(brkLnPsi/6) / 60;
         else if (equPsi > brkLnPsi)
             brkFlRat   = +(brkLnPsi/6) / 60;
-     // brkFlRat   = 3 * rateSvc / 60;
         break;
 
     case BRK_A_EMER:
-    /// brkLnPsiMin = 0;
-     // brkFlRat    = rateEmer / 60;
         brkFlRat   = -brkLnPsi *3 / 60;
         equPsi    -= 50 * dTsec;
         break;
